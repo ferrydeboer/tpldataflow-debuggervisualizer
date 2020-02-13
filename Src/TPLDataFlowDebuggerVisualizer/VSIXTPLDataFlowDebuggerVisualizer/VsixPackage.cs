@@ -98,26 +98,19 @@ namespace VSIXTPLDataFlowDebuggerVisualizer
             var sourceFileFullName = Path.Combine(sourceFolderFullName, fileName);
             var destinationFileFullName = Path.Combine(destinationFolderFullName, fileName);
 
-            await CopyFileIfNewerVersion(sourceFileFullName, destinationFileFullName);
+            await CopyFileIfDifferentVersion(sourceFileFullName, destinationFileFullName);
         }
 
-        private async Task CopyFileIfNewerVersion(string sourceFileFullName, string destinationFileFullName)
+        private async Task CopyFileIfDifferentVersion(string sourceFileFullName, string destinationFileFullName)
         {
-            bool copy = false;
+            bool copy;
 
             if (File.Exists(destinationFileFullName))
             {
-                var sourceFileVersionInfo = System.Diagnostics.FileVersionInfo.GetVersionInfo(sourceFileFullName);
-                var destinationFileVersionInfo = System.Diagnostics.FileVersionInfo.GetVersionInfo(destinationFileFullName);
-                if (sourceFileVersionInfo.FileMajorPart > destinationFileVersionInfo.FileMajorPart)
-                {
-                    copy = true;
-                }
-                else if (sourceFileVersionInfo.FileMajorPart == destinationFileVersionInfo.FileMajorPart
-                   && sourceFileVersionInfo.FileMinorPart > destinationFileVersionInfo.FileMinorPart)
-                {
-                    copy = true;
-                }
+                var sourceFileVersionInfo = FileVersionInfo.GetVersionInfo(sourceFileFullName);
+                var destinationFileVersionInfo = FileVersionInfo.GetVersionInfo(destinationFileFullName);
+
+                copy = sourceFileVersionInfo.IsNewer(destinationFileVersionInfo);
             }
             else
             {
@@ -134,10 +127,33 @@ namespace VSIXTPLDataFlowDebuggerVisualizer
                         await SourceStream.CopyToAsync(DestinationStream);
                     }
                 }
-                //File.Copy(sourceFileFullName, destinationFileFullName, true);
             }
         }
 
         #endregion
+    }
+
+    public static class FileVersionInfoExtension
+    {
+        public static bool IsNewer(this FileVersionInfo source, FileVersionInfo than)
+        {
+            if (source.FileMajorPart > than.FileMajorPart)
+            {
+                return true;
+            }
+            if(source.FileMajorPart == than.FileMajorPart &&
+                source.FileMinorPart > than.FileMinorPart)
+            {
+                return true;
+            }
+            if (source.FileMajorPart == than.FileMajorPart &&
+                source.FileMinorPart == than.FileMinorPart &&
+                source.FileBuildPart > than.FileBuildPart)
+            {
+                return true;
+            }
+
+            return false;
+        }
     }
 }
