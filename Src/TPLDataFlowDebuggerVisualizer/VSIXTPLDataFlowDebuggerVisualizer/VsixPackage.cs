@@ -1,16 +1,13 @@
 ﻿using System;
-using System.ComponentModel.Design;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
-using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices;
-using Microsoft.VisualStudio;
-using Microsoft.VisualStudio.OLE.Interop;
+using System.Threading;
 using Microsoft.VisualStudio.Shell;
 using Microsoft.VisualStudio.Shell.Interop;
-using Microsoft.Win32;
+using Task = System.Threading.Tasks.Task;
 
 namespace VSIXTPLDataFlowDebuggerVisualizer
 {
@@ -31,12 +28,12 @@ namespace VSIXTPLDataFlowDebuggerVisualizer
     /// To get loaded into VS, the package must be referred by &lt;Asset Type="Microsoft.VisualStudio.VsPackage" ...&gt; in .vsixmanifest file.
     /// </para>
     /// </remarks>  
-    [PackageRegistration(UseManagedResourcesOnly = true)]
+    [PackageRegistration(UseManagedResourcesOnly = true, AllowsBackgroundLoading = true)]
+    [ProvideAutoLoad(UIContextGuids80.Debugging)]
     [InstalledProductRegistration("#110", "#112", "1.0", IconResourceID = 400)] // Info on this package for Help/About
-    [Guid(VsixPackage.PackageGuidString)]
-    [ProvideAutoLoad(Microsoft.VisualStudio.VSConstants.UICONTEXT.NoSolution_string)]
+    [Guid(PackageGuidString)]
     [SuppressMessage("StyleCop.CSharp.DocumentationRules", "SA1650:ElementDocumentationMustBeSpelledCorrectly", Justification = "pkgdef, VS and vsixmanifest are valid VS terms")]
-    public sealed class VsixPackage : Package
+    public sealed class VsixPackage : AsyncPackage
     {
         private readonly string[] VisualizerAssmNames = new[]
         {
@@ -65,15 +62,24 @@ namespace VSIXTPLDataFlowDebuggerVisualizer
         /// Initialization of the package; this method is called right after the package is sited, so this is the place
         /// where you can put all the initialization code that rely on services provided by VisualStudio.
         /// </summary>
-        protected override void Initialize()
+        protected override async Task InitializeAsync(CancellationToken cancellationToken, IProgress<ServiceProgressData> progress)
         {
-
-
             try
             {
-                base.Initialize();
-                VisualizerAssmNames.ToList().ForEach(CopyDll);
+                await base.InitializeAsync(cancellationToken, progress);
 
+                await JoinableTaskFactory.SwitchToMainThreadAsync(cancellationToken);
+                // Get the destination folder for visualizers
+                if (await GetServiceAsync(typeof(SVsShell)) is IVsShell shell)
+                {
+                    shell.GetProperty((int) __VSSPROPID2.VSSPROPID_VisualStudioDir, out var documentsFolderFullNameObject);
+                    await JoinableTaskFactory.RunAsync(async () =>
+                    {
+                        var copyTasks = VisualizerAssmNames
+                            .Select(file => CopyDll(file, documentsFolderFullNameObject.ToString())).ToArray();
+                        await Task.WhenAll(copyTasks);
+                    });
+                }
             }
             catch (Exception ex)
             {
@@ -82,34 +88,27 @@ namespace VSIXTPLDataFlowDebuggerVisualizer
             }
         }
 
-        private void CopyDll(string fileName)
+        private async Task CopyDll(string fileName, string documentsFolderFullName)
         {
             // The Visualizer dll is in the same folder than the package because its project is added as reference to this project,
             // so it is included inside the .vsix file. We only need to deploy it to the correct destination folder.
             var sourceFolderFullName = Path.GetDirectoryName(System.Reflection.Assembly.GetExecutingAssembly().Location);
-
-            // Get the destination folder for visualizers
-            var shell = base.GetService(typeof(SVsShell)) as IVsShell;
-            shell.GetProperty((int)__VSSPROPID2.VSSPROPID_VisualStudioDir, out var documentsFolderFullNameObject);
-            var documentsFolderFullName = documentsFolderFullNameObject.ToString();
             var destinationFolderFullName = Path.Combine(documentsFolderFullName, "Visualizers");
 
             var sourceFileFullName = Path.Combine(sourceFolderFullName, fileName);
             var destinationFileFullName = Path.Combine(destinationFolderFullName, fileName);
 
-            CopyFileIfNewerVersion(sourceFileFullName, destinationFileFullName);
+            await CopyFileIfNewerVersion(sourceFileFullName, destinationFileFullName);
         }
 
-        private void CopyFileIfNewerVersion(string sourceFileFullName, string destinationFileFullName)
+        private async Task CopyFileIfNewerVersion(string sourceFileFullName, string destinationFileFullName)
         {
-            FileVersionInfo destinationFileVersionInfo;
-            FileVersionInfo sourceFileVersionInfo;
             bool copy = false;
 
             if (File.Exists(destinationFileFullName))
             {
-                sourceFileVersionInfo = System.Diagnostics.FileVersionInfo.GetVersionInfo(sourceFileFullName);
-                destinationFileVersionInfo = System.Diagnostics.FileVersionInfo.GetVersionInfo(destinationFileFullName);
+                var sourceFileVersionInfo = System.Diagnostics.FileVersionInfo.GetVersionInfo(sourceFileFullName);
+                var destinationFileVersionInfo = System.Diagnostics.FileVersionInfo.GetVersionInfo(destinationFileFullName);
                 if (sourceFileVersionInfo.FileMajorPart > destinationFileVersionInfo.FileMajorPart)
                 {
                     copy = true;
@@ -128,7 +127,14 @@ namespace VSIXTPLDataFlowDebuggerVisualizer
 
             if (copy)
             {
-                File.Copy(sourceFileFullName, destinationFileFullName, true);
+                using (FileStream SourceStream = File.Open(sourceFileFullName, FileMode.Open))
+                {
+                    using (FileStream DestinationStream = File.Create(destinationFileFullName))
+                    {
+                        await SourceStream.CopyToAsync(DestinationStream);
+                    }
+                }
+                //File.Copy(sourceFileFullName, destinationFileFullName, true);
             }
         }
 

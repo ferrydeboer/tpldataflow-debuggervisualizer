@@ -75,8 +75,6 @@ namespace TPLDataFlowDebuggerVisualizer.Tester
             join.LinkTo(action2);
 
             DataFlowDebuggerSide.TestShowVisualizer(b);
-
-
         }
     }
 }
