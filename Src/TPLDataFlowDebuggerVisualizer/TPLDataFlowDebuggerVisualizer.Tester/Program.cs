@@ -12,69 +12,74 @@ namespace TPLDataFlowDebuggerVisualizer.Tester
         [STAThread]
         static void Main(string[] args)
         {
-            var batchRequests = new BatchBlock<int>(batchSize: 10);
+            var batchRequests = new BatchBlock<int>(batchSize: 10, new GroupingDataflowBlockOptions(){NameFormat = "BatchEntries{1}"});
 
-
-            BroadcastBlock<int> br = new BroadcastBlock<int>(x => x);
-            ActionBlock<int> actionx = new ActionBlock<int>((i) => Console.WriteLine(i));
-
+            BroadcastBlock<int> br = new BroadcastBlock<int>(x => x, new DataflowBlockOptions{NameFormat = "EntryBlock[{1}]"});
+            ActionBlock<int> actionx = new ActionBlock<int>(Console.WriteLine, new ExecutionDataflowBlockOptions { NameFormat = "Entry Console Writer[{1}]" });
+            
             br.LinkTo(actionx, x => x > 10);
-
-
-
+            
+            
+            
             MyProcessBlock pb = new MyProcessBlock();
-
+            
             pb.LinkTo(actionx);
-
-
-
-            var sendToDb = new ActionBlock<int[]>(reqs => Console.WriteLine(reqs.Length));
+            
+            
+            
+            var sendToDb = new ActionBlock<int[]>(reqs => Console.WriteLine(reqs.Length), new ExecutionDataflowBlockOptions());
             batchRequests.LinkTo(sendToDb);
-
-
+            
+            
             for (int i = 0; i < 100; i++)
             {
                 batchRequests.Post(i);
-
+            
             }
-
-
-
+            
+            
+            
             WriteOnceBlock<int> wo = new WriteOnceBlock<int>(x => x);
             ActionBlock<int> action = new ActionBlock<int>((i) => Console.WriteLine(i));
             wo.LinkTo(action, new DataflowLinkOptions { PropagateCompletion = true });
-
+            
             wo.Post(1);
             wo.Post(2);
             wo.Post(3);
             wo.Post(4);
             wo.Post(5);
             wo.Complete();
-
-
-
-
+            
+            
+            
+            
             BroadcastBlock<int> b = new BroadcastBlock<int>(x => x);
-
-
-
+            
+            
+            
             TransformBlock<int, int> t2 = new TransformBlock<int, int>(x => x);
             TransformBlock<int, int> t = new TransformBlock<int, int>(x => x);
-
+            
             JoinBlock<int, int> join = new JoinBlock<int, int>();
-
-            ActionBlock<Tuple<int, int>> action2 = new ActionBlock<Tuple<int, int>>((i) => Console.WriteLine("{0}-{1}", i.Item1, i.Item2), new ExecutionDataflowBlockOptions { BoundedCapacity = 10, MaxMessagesPerTask = 30 });
-
+            
+            ActionBlock<Tuple<int, int>> action2 = new ActionBlock<Tuple<int, int>>((i) => Console.WriteLine("{0}-{1}", i.Item1, i.Item2), new ExecutionDataflowBlockOptions { BoundedCapacity = 10, MaxMessagesPerTask = 30, NameFormat = "Action2[{1}]"});
+            
             b.LinkTo(t, x => x > 10);
             b.LinkTo(t2);
-
+            
             t.LinkTo(action, x => x > 10);
             t2.LinkTo(action, x => x > 10);
             t.LinkTo(join.Target1);
             t2.LinkTo(join.Target1);
             join.LinkTo(action2);
-
+            
             DataFlowDebuggerSide.TestShowVisualizer(b);
+        }
+
+        private static void OneBlock()
+        {
+            BroadcastBlock<int> br = new BroadcastBlock<int>(x => x, new DataflowBlockOptions { NameFormat = "EntryBlock[{1}]" });
+            DataFlowDebuggerSide.TestShowVisualizer(br);
         }
     }
 }

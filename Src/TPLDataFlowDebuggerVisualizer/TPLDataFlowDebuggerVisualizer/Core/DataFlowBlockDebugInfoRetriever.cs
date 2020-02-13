@@ -42,6 +42,8 @@ namespace TPLDataFlowDebuggerVisualizer.Core
 
         }
 
+        private static readonly DataflowBlockOptions DefaultNameFormat = new DataflowBlockOptions();
+
         private static DataFlowDebuggerInfo GetInnerDataFlowDebuggerInfo(IDataflowBlock dataflowBlock, ConcurrentDictionary<int, DataFlowDebuggerInfo> nodesDic, out IEnumerable<IDataflowBlock> linkedTargets)
         {
             DataFlowDebuggerInfo res;
@@ -65,19 +67,22 @@ namespace TPLDataFlowDebuggerVisualizer.Core
             var id = dataflowBlock.GetType().Name == "FilteredLinkPropagator`1" ? dataflowBlock.Completion.Id * -1: SafeGetProperty<int>(dvInstance, "Id");
 
             var dataflowBlockOptions = SafeGetProperty<DataflowBlockOptions>(dvInstance, "DataflowBlockOptions");
+            
             res = nodesDic.GetOrAdd(id, new DataFlowDebuggerInfo
-           {
-               BlockType = GetBlockTypeStr(dataflowBlockType),
-               CurrentDegreeOfParallelism = SafeGetProperty<int>(dvInstance, "CurrentDegreeOfParallelism"),
-               Id = id,
-               IsCompleted = SafeGetProperty<bool>(dvInstance, "IsCompleted"),
-               IsDecliningPermanently = SafeGetProperty<bool>(dvInstance, "IsCompleted"),
-               InputQueueLength = SafeGetEnumerableLength(dvInstance, "InputQueue"),
-               OutputQueueLength = SafeGetEnumerableLength(dvInstance, "OutputQueue"),
-               BoundedCapacity = dataflowBlockOptions != null ? dataflowBlockOptions.BoundedCapacity : -1,
-               MaxMessagesPerTask = dataflowBlockOptions != null ? dataflowBlockOptions.MaxMessagesPerTask : -1,
-
-           });
+            {
+                BlockType = (!string.IsNullOrWhiteSpace(dataflowBlockOptions?.NameFormat) && dataflowBlockOptions.NameFormat != DefaultNameFormat.NameFormat) 
+                    ? dataflowBlock.ToString()
+                    : GetBlockTypeStr(dataflowBlockType),
+                // BlockType = GetBlockTypeStr(dataflowBlockType),
+                CurrentDegreeOfParallelism = SafeGetProperty<int>(dvInstance, "CurrentDegreeOfParallelism"),
+                Id = id,
+                IsCompleted = SafeGetProperty<bool>(dvInstance, "IsCompleted"),
+                IsDecliningPermanently = SafeGetProperty<bool>(dvInstance, "IsCompleted"),
+                InputQueueLength = SafeGetEnumerableLength(dvInstance, "InputQueue"),
+                OutputQueueLength = SafeGetEnumerableLength(dvInstance, "OutputQueue"),
+                BoundedCapacity = dataflowBlockOptions?.BoundedCapacity ?? -1,
+                MaxMessagesPerTask = dataflowBlockOptions?.MaxMessagesPerTask ?? -1
+            });
 
             linkedTargets = dataflowBlock.GetType().Name == "FilteredLinkPropagator`1" ? new List<IDataflowBlock> { SafeGetProperty<IDataflowBlock>(dvInstance, "LinkedTarget") } : GetLinkedTragets(dvInstance, "LinkedTargets");
 
@@ -120,11 +125,11 @@ namespace TPLDataFlowDebuggerVisualizer.Core
 
         private static IDataflowBlock RetrieveJoinBlock(IDataflowBlock dataflowBlock)
         {
-            var joinTargetType = dataflowBlock.GetType().GetField("m_sharedResources", BindingFlags.NonPublic | BindingFlags.Instance);
+            var joinTargetType = dataflowBlock.GetType().GetField("_sharedResources", BindingFlags.NonPublic | BindingFlags.Instance);
             Debug.Assert(joinTargetType != null, "joinTargetType != null");
 
             // ReSharper disable PossibleNullReferenceException
-            var joinSourceField = joinTargetType.FieldType.GetField("m_ownerJoin", BindingFlags.NonPublic | BindingFlags.Instance);
+            var joinSourceField = joinTargetType.FieldType.GetField("_ownerJoin", BindingFlags.NonPublic | BindingFlags.Instance);
 
             var sharedResources = joinTargetType.GetValue(dataflowBlock);
 

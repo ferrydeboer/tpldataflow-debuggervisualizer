@@ -9,11 +9,11 @@ namespace TPLDataFlowDebuggerVisualizer.ViewModel
     {
         public DataFlowGraphViewModel(DataFlowDebuggerInfo dataFlowDebuggerInfo)
         {
-            InitGrpah(dataFlowDebuggerInfo);
+            InitGraph(dataFlowDebuggerInfo);
         }
 
       
-        private void InitGrpah(DataFlowDebuggerInfo dataFlowDebuggerInfo)
+        private void InitGraph(DataFlowDebuggerInfo dataFlowDebuggerInfo)
         {
             var graph = new BidirectionalGraph<DataFlowDebuggerInfo, IEdge<DataFlowDebuggerInfo>>();
             var nodesDic = new ConcurrentDictionary<int, DataFlowDebuggerInfo>();

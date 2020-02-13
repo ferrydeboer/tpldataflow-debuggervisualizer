@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <PackageManifest Version="2.0.0" xmlns="http://schemas.microsoft.com/developer/vsx-schema/2011" xmlns:d="http://schemas.microsoft.com/developer/vsx-schema-design/2011">
     <Metadata>
-        <Identity Id="VSIXTPLDataFlowDebuggerVisualizer.db47c928-f896-4a53-8d18-7be54d25cec5" Version="1.0.4" Language="en-US" Publisher="Offir Shvartz, Ferry de Boer" />
+        <Identity Id="VSIXTPLDataFlowDebuggerVisualizer.db47c928-f896-4a53-8d18-7be54d25cec5" Version="1.1" Language="en-US" Publisher="Offir Shvartz, Ferry de Boer" />
         <DisplayName>TPL DataFlow Debugger Visualizer</DisplayName>
         <Description xml:space="preserve">Enables you to to view a graphic view of your TPL data flow network including the state of each block</Description>
     </Metadata>
